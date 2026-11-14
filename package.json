@@ -1,0 +1,17 @@
+{
+  "name": "al-haderech-android",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Android shell for the Al HaDerech running app: loads the web app and adds background GPS with a lock-screen notification",
+  "dependencies": {
+    "@capacitor-community/background-geolocation": "1.3.1",
+    "@capacitor/android": "8.6.2",
+    "@capacitor/core": "8.6.2",
+    "@capacitor/filesystem": "8.1.5",
+    "@capacitor/local-notifications": "8.3.1",
+    "@capacitor/share": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.2"
+  }
+}

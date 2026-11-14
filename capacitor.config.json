@@ -1,0 +1,20 @@
+{
+  "appId": "app.alhaderech.run",
+  "appName": "על הדרך",
+  "webDir": "www",
+  "server": {
+    "url": "https://amitbusi10-pixel.github.io/run/",
+    "cleartext": false,
+    "allowNavigation": ["amitbusi10-pixel.github.io"]
+  },
+  "android": {
+    "useLegacyBridge": true,
+    "backgroundColor": "#0e1622"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_tracking",
+      "iconColor": "#ff7a45"
+    }
+  }
+}
