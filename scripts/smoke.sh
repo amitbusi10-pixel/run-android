@@ -23,7 +23,7 @@ tap_text() {
 
 adb shell input swipe 160 560 160 200 400
 sleep 2
-tap_text "התחל ריצה" || { adb shell input swipe 160 560 160 150 400; sleep 2; tap_text "התחל ריצה"; }
+tap_text "התחל ריצה" || adb shell input tap 160 433   # fallback: where the button sits after the scroll on this emulator
 sleep 6
 adb exec-out screencap -p > 2-running.png
 
