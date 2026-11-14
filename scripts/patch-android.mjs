@@ -20,6 +20,9 @@ const perms = [
 const missing = perms.filter((p) => !manifest.includes(`"${p}"`));
 const lines = missing.map((p) => `    <uses-permission android:name="${p}" />`).join('\n');
 manifest = manifest.replace('</manifest>', `${lines}\n    <uses-feature android:name="android.hardware.location.gps" android:required="false" />\n</manifest>`);
+// the live notification is shown immediately, so the exact-alarm permission is not needed
+if (!manifest.includes('xmlns:tools')) manifest = manifest.replace('<manifest ', '<manifest xmlns:tools="http://schemas.android.com/tools" ');
+manifest = manifest.replace('</manifest>', '    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />\n</manifest>');
 // keep the screen in portrait, like the web app
 manifest = manifest.replace('android:name=".MainActivity"', 'android:name=".MainActivity"\n            android:screenOrientation="portrait"');
 fs.writeFileSync(manifestPath, manifest);
