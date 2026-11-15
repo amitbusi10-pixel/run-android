@@ -38,6 +38,7 @@ move 8
 
 adb shell input keyevent 3          # home: the app goes to the background
 move 8
+adb shell locksettings set-pin 1234 || true   # a real lock screen
 adb shell input keyevent 26         # screen off (locked)
 move 12
 adb shell input keyevent 26         # screen on: lock screen with the notification
@@ -51,6 +52,7 @@ sleep 5
 adb shell dumpsys notification --noredact | grep -A60 "pkg=$PKG" | grep -E "android.title=" | head -2 > notif-later.txt
 cat notif-later.txt
 
+adb shell locksettings clear --old 1234 || true
 adb shell wm dismiss-keyguard; sleep 1
 adb shell cmd statusbar expand-notifications; sleep 2
 adb exec-out screencap -p > 4-shade.png
@@ -61,12 +63,14 @@ adb exec-out screencap -p > 5-back-in-app.png
 
 # finish the run and play the fast replay on the summary screen
 adb shell input swipe 160 560 160 200 400; sleep 1
-tap_text "סיים" || true
+tap_text "סיים" || adb shell input tap 85 415
 sleep 3
 adb exec-out screencap -p > 6-summary.png
-tap_text "שחזור מהיר" || true
+tap_text "שחזור מהיר" || adb shell input tap 84 333
 sleep 3
 adb exec-out screencap -p > 7-replay.png
+sleep 9
+adb exec-out screencap -p > 8-replay-done.png
 cp u.xml u-summary.xml 2>/dev/null
 
 adb logcat -d -b crash > crash.txt
