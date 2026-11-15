@@ -41,7 +41,8 @@ public class RunTrackerService extends Service {
     static final String ACTION_STOP = "app.alhaderech.run.STOP";
     static final String ACTION_PAUSE = "app.alhaderech.run.PAUSE";
     static final String ACTION_RESUME = "app.alhaderech.run.RESUME";
-    static final String CHANNEL = "run-tracking";
+    // default importance (not "silent"), so Android shows it on the lock screen; the channel has no sound or vibration
+    static final String CHANNEL = "run-live-v2";
     static final int NOTIF_ID = 4242;
 
     static volatile boolean running = false;
@@ -117,14 +118,17 @@ public class RunTrackerService extends Service {
 
     private void createChannel() {
         if (Build.VERSION.SDK_INT >= 26) {
-            NotificationChannel ch = new NotificationChannel(CHANNEL, "ריצה פעילה", NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel ch = new NotificationChannel(CHANNEL, "ריצה פעילה", NotificationManager.IMPORTANCE_DEFAULT);
             ch.setDescription("זמן, מרחק וקצב בזמן הריצה");
             ch.setShowBadge(false);
             ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             ch.enableVibration(false);
             ch.setSound(null, null);
             NotificationManager nm = getSystemService(NotificationManager.class);
-            if (nm != null) nm.createNotificationChannel(ch);
+            if (nm != null) {
+                nm.createNotificationChannel(ch);
+                nm.deleteNotificationChannel("run-tracking"); // the old low-importance channel
+            }
         }
     }
 
@@ -147,7 +151,7 @@ public class RunTrackerService extends Service {
             .setSilent(true)
             .setCategory(NotificationCompat.CATEGORY_WORKOUT)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(openPi)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .addAction(0, paused ? "המשך" : "השהה", togglePi);
