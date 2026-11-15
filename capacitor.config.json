@@ -13,11 +13,5 @@
     "useLegacyBridge": true,
     "backgroundColor": "#0e1622"
   },
-  "plugins": {
-    "LocalNotifications": {
-      "smallIcon": "ic_tracking",
-      "iconColor": "#ff7a45"
-    }
-  },
   "loggingBehavior": "production"
 }
