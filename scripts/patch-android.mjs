@@ -65,13 +65,14 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(RunTrackerPlugin.class);
+        registerPlugin(GoogleAuthPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
 `);
 const appGradlePath = path.resolve('android/app/build.gradle');
 let appGradle = fs.readFileSync(appGradlePath, 'utf8');
-appGradle = appGradle.replace(/dependencies \{/, 'dependencies {\n    implementation "com.google.android.gms:play-services-location:21.3.0"');
+appGradle = appGradle.replace(/dependencies \{/, 'dependencies {\n    implementation "com.google.android.gms:play-services-location:21.3.0"\n    implementation "androidx.credentials:credentials:1.5.0"\n    implementation "androidx.credentials:credentials-play-services-auth:1.5.0"\n    implementation "com.google.android.libraries.identity.googleid:googleid:1.2.1"');
 fs.writeFileSync(appGradlePath, appGradle);
 
 // 5. Version: every build installs over the previous one
