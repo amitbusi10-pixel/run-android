@@ -69,6 +69,8 @@ sleep 3
 adb exec-out screencap -p > 7-replay.png
 cp u.xml u-summary.xml 2>/dev/null
 
+adb logcat -d -b crash > crash.txt
+adb logcat -d > logcat-full.txt
 adb logcat -d | grep -E "AL-HADERECH|Capacitor/Console|AndroidRuntime: FATAL|RunTracker" | tail -60 > log.txt
 cat log.txt
 # pass: one notification, with a distance in it
