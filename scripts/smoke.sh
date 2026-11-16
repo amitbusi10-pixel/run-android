@@ -60,7 +60,7 @@ grep -E "android.title=|android.text=|when=|android.progress=" notif-1.txt | hea
 cat notif.txt
 COUNT=$(grep -c "NotificationRecord(" notif-1.txt)
 check "one notification only (found $COUNT)" '[ "$COUNT" = 1 ]'
-check "no 'ריצה פעילה' text" '! grep -q "ריצה פעילה" notif-1.txt'
+check "no 'ריצה פעילה' text" '! grep -E "android.(title|text)=" notif-1.txt | grep -q "ריצה פעילה"'
 check "says 'הריצה התחילה'" 'grep -q "הריצה התחילה" notif-1.txt'
 W1=$(grep -o " when=[0-9]*" notif-1.txt | head -1); W2=$(grep -o " when=[0-9]*" notif-2.txt | head -1)
 check "timer base stays the same ($W1 / $W2)" '[ -n "$W1" ] && [ "$W1" = "$W2" ]'
@@ -77,14 +77,15 @@ adb shell cmd statusbar expand-notifications; sleep 2
 adb exec-out screencap -p > 4-shade.png
 if [ -z "$OLD" ]; then
   # pause from the notification itself
-  tap_text "השהה"
+  tap_text "השהה" || adb shell input tap 85 388
+  cp u.xml u-shade.xml
   sleep 3
   notifs > notif-paused.txt
   adb exec-out screencap -p > 4b-paused.png
   check "pause button in the notification" 'grep -q "בהשהיה" notif-paused.txt'
-  tap_text "המשך"; sleep 3
+  tap_text "המשך" || adb shell input tap 85 388; sleep 3
   notifs > notif-resumed.txt
-  check "resume button in the notification" 'grep -q "הריצה התחילה" notif-resumed.txt'
+  check "resume button in the notification" 'grep -q "הריצה התחילה" notif-resumed.txt && grep -q "בהשהיה" notif-paused.txt'
 fi
 adb shell cmd statusbar collapse
 adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1

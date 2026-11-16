@@ -127,7 +127,7 @@ public class RunTrackerService extends Service {
 
     private void createChannel() {
         if (Build.VERSION.SDK_INT >= 26) {
-            NotificationChannel ch = new NotificationChannel(CHANNEL, "ריצה פעילה", NotificationManager.IMPORTANCE_DEFAULT);
+            NotificationChannel ch = new NotificationChannel(CHANNEL, "מדידת ריצה", NotificationManager.IMPORTANCE_DEFAULT);
             ch.setDescription("זמן, מרחק וקצב בזמן הריצה");
             ch.setShowBadge(false);
             ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
