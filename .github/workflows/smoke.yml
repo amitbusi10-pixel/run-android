@@ -10,7 +10,7 @@ jobs:
       fail-fast: false
       matrix:
         # latest = the current app; v6 = an old install (before the native service), which still gets the web updates
-        apk: [latest, v25]
+        apk: [latest, v6]
     steps:
       - name: Enable KVM
         run: |

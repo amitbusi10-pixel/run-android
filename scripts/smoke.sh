@@ -95,13 +95,13 @@ adb shell cmd statusbar expand-notifications; sleep 2
 adb exec-out screencap -p > 4-shade.png
 if [ -z "$OLD" ]; then
   # pause from the notification itself
-  tap_text "השהה" || adb shell input tap 85 388
+  tap_text "השהה" || adb shell input tap 85 362
   cp u.xml u-shade.xml
   sleep 3
   notifs > notif-paused.txt
   adb exec-out screencap -p > 4b-paused.png
   check "pause button in the notification" 'grep -q "בהשהיה" notif-paused.txt'
-  tap_text "המשך" || adb shell input tap 85 388; sleep 3
+  tap_text "המשך" || adb shell input tap 85 362; sleep 3
   notifs > notif-resumed.txt
   check "resume button in the notification" 'grep -q "הריצה התחילה" notif-resumed.txt && grep -q "בהשהיה" notif-paused.txt'
 fi
@@ -120,10 +120,10 @@ if [ -z "$OLD" ]; then
   check "notification keeps counting while the app is closed ($TB -> $TK km)" '[ -n "$TK" ] && [ "$(echo "$TK > $TB + 0.03" | bc)" = 1 ]'
   # pause from the notification while the app is closed
   adb shell cmd statusbar expand-notifications; sleep 2
-  tap_text "השהה" || adb shell input tap 85 388; sleep 3
+  tap_text "השהה" || adb shell input tap 85 362; sleep 3
   notifs > notif-killed-paused.txt
   check "pause works while the app is closed" 'grep -q "בהשהיה" notif-killed-paused.txt'
-  tap_text "המשך" || adb shell input tap 85 388; sleep 2
+  tap_text "המשך" || adb shell input tap 85 362; sleep 2
   adb shell cmd statusbar collapse
 fi
 adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1
@@ -158,7 +158,7 @@ if [ -z "$OLD" ]; then
   check "second run shows a notification ($(ncount notif-run2.txt))" '[ "$(ncount notif-run2.txt)" = 1 ]'
   adb shell input keyevent 187; sleep 3
   adb exec-out screencap -p > 9-recents.png
-  adb shell input swipe 250 300 250 0 300; sleep 4
+  adb shell input swipe 160 300 160 0 300; sleep 4
   notifs > notif-swiped.txt
   check "notification gone after swiping the app away" '[ "$(ncount notif-swiped.txt)" = 0 ]'
   adb shell input keyevent 3
