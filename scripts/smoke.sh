@@ -88,7 +88,9 @@ if [ -z "$OLD" ]; then
 fi
 
 adb shell locksettings clear --old 1234 || true
+adb shell input swipe 160 560 160 100 300; sleep 1
 adb shell wm dismiss-keyguard; sleep 1
+adb shell input keyevent 3; sleep 1
 adb shell cmd statusbar expand-notifications; sleep 2
 adb exec-out screencap -p > 4-shade.png
 if [ -z "$OLD" ]; then
@@ -156,7 +158,7 @@ if [ -z "$OLD" ]; then
   check "second run shows a notification ($(ncount notif-run2.txt))" '[ "$(ncount notif-run2.txt)" = 1 ]'
   adb shell input keyevent 187; sleep 3
   adb exec-out screencap -p > 9-recents.png
-  adb shell input swipe 160 330 160 0 300; sleep 4
+  adb shell input swipe 250 300 250 0 300; sleep 4
   notifs > notif-swiped.txt
   check "notification gone after swiping the app away" '[ "$(ncount notif-swiped.txt)" = 0 ]'
   adb shell input keyevent 3
