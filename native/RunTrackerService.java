@@ -15,6 +15,8 @@ import android.location.Location;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
+import android.widget.RemoteViews;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
@@ -322,13 +324,21 @@ public class RunTrackerService extends Service {
             .setContentIntent(openPi)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .addAction(0, paused ? "המשך" : "השהה", togglePi);
-        if (paused) {
-            b.setShowWhen(false).setUsesChronometer(false);
+        // our own layout: distance and timer in the same big bold type, a line of text, a progress bar
+        RemoteViews rv = new RemoteViews(getPackageName(), R.layout.notif_run);
+        rv.setTextViewText(R.id.nv_dist, title);
+        rv.setTextViewText(R.id.nv_sub, text);
+        // the timer is a Chronometer inside the notification: the system ticks it every second by itself
+        long elapsedNow = paused ? (long) elapsedMs : System.currentTimeMillis() - chronoBase;
+        rv.setChronometer(R.id.nv_time, SystemClock.elapsedRealtime() - elapsedNow, null, !paused);
+        if (goal > 0) {
+            rv.setViewVisibility(R.id.nv_prog, android.view.View.VISIBLE);
+            rv.setProgressBar(R.id.nv_prog, 1000, (int) Math.min(1000, curDist() * 1000 / goal), false);
         } else {
-            // the system ticks the timer every second by itself, without waking the app
-            b.setUsesChronometer(true).setShowWhen(true).setWhen(chronoBase);
+            rv.setViewVisibility(R.id.nv_prog, android.view.View.GONE);
         }
-        if (goal > 0) b.setProgress(1000, (int) Math.min(1000, curDist() * 1000 / goal), false);
+        b.setStyle(new NotificationCompat.DecoratedCustomViewStyle()).setCustomContentView(rv).setCustomBigContentView(rv);
+        b.setShowWhen(false).setWhen(chronoBase); // the base stays fixed (used to check the timer never restarts)
         // Android 16 "live update": shown as a chip in the status bar / Samsung Now Bar when allowed
         b.getExtras().putBoolean("android.requestPromotedOngoing", true);
         if (chip != null && !chip.isEmpty()) b.getExtras().putString("android.shortCriticalText", chip);
@@ -398,6 +408,13 @@ public class RunTrackerService extends Service {
         new File(getFilesDir(), POINTS_FILE).delete();
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
         stopSelf();
+    }
+
+    /** The app was swiped away from the recent-apps list: end the run's service and remove the notification. */
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        stopEverything();
+        super.onTaskRemoved(rootIntent);
     }
 
     @Override

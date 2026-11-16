@@ -84,7 +84,7 @@ if [ -z "$OLD" ]; then
   check "distance in the notification" 'grep -q "android.title=.*ק״מ" notif-2.txt'
   T1=$(grep -o "android.title=String ([^)]*)" notif-1.txt | head -1); T2=$(grep -o "android.title=String ([^)]*)" notif-2.txt | head -1)
   check "distance grows ($T1 -> $T2)" '[ "$T1" != "$T2" ]'
-  check "live timer (chronometer)" 'grep -q "android.showChronometer=Boolean (true)" notif-1.txt'
+  check "custom layout with timer" 'grep -qE "contentView=|customContentView|RemoteViews" notif-1.txt'
 fi
 
 adb shell locksettings clear --old 1234 || true
@@ -148,6 +148,19 @@ adb exec-out screencap -p > 7-replay.png
 sleep 9
 adb exec-out screencap -p > 8-replay-done.png
 
+if [ -z "$OLD" ]; then
+  # start another run, then swipe the app away from the recent-apps list: the notification must disappear
+  tap_text "ריצה" || adb shell input tap 285 600; sleep 2
+  tap_text "התחל ריצה" || adb shell input tap 160 433; sleep 8
+  notifs > notif-run2.txt
+  check "second run shows a notification ($(ncount notif-run2.txt))" '[ "$(ncount notif-run2.txt)" = 1 ]'
+  adb shell input keyevent 187; sleep 3
+  adb exec-out screencap -p > 9-recents.png
+  adb shell input swipe 160 330 160 0 300; sleep 4
+  notifs > notif-swiped.txt
+  check "notification gone after swiping the app away" '[ "$(ncount notif-swiped.txt)" = 0 ]'
+  adb shell input keyevent 3
+fi
 adb logcat -d -b crash > crash.txt
 adb logcat -d > logcat-full.txt
 adb logcat -d | grep -E "AL-HADERECH|Capacitor/Console|AndroidRuntime: FATAL|RunTracker" | tail -60 > log.txt

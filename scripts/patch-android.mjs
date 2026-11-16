@@ -52,6 +52,32 @@ fs.writeFileSync(path.join(res, 'drawable/ic_tracking.xml'), `<vector xmlns:andr
 </vector>
 `);
 
+// 3b. Layout of the live run notification: distance and timer in the same big bold type
+fs.mkdirSync(path.join(res, 'layout'), { recursive: true });
+fs.writeFileSync(path.join(res, 'layout/notif_run.xml'), `<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:paddingTop="2dp" android:paddingBottom="4dp">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView android:id="@+id/nv_dist" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"
+            android:textSize="22sp" android:textStyle="bold" android:singleLine="true" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"
+            android:textSize="22sp" android:textStyle="bold" android:text=" · " />
+        <Chronometer android:id="@+id/nv_time" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"
+            android:textSize="22sp" android:textStyle="bold" android:singleLine="true" />
+    </LinearLayout>
+    <TextView android:id="@+id/nv_sub" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textAppearance="@android:style/TextAppearance.Material.Notification" android:textSize="14sp" android:singleLine="true" />
+    <ProgressBar android:id="@+id/nv_prog" style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent" android:layout_height="6dp" android:layout_marginTop="6dp"
+        android:max="1000" android:progress="0" />
+</LinearLayout>
+`);
+
 // 4. Native run tracker: copy the sources, register the plugin, add Google location services
 const javaDir = path.join(root, 'java/app/alhaderech/run');
 for (const f of fs.readdirSync(path.resolve('native'))) fs.copyFileSync(path.resolve('native', f), path.join(javaDir, f));
