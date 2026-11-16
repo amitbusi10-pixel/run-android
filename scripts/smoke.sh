@@ -27,7 +27,7 @@ tap_text() {
   adb shell uiautomator dump /sdcard/u.xml >/dev/null 2>&1
   adb exec-out cat /sdcard/u.xml > u.xml
   local b
-  b=$(grep -o "\(text\|content-desc\)=\"$1\"[^>]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]\"" u.xml | head -1 | grep -o '\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]' | tr -d '[]' | tr ',' ' ')
+  b=$(grep -o "\(text\|content-desc\)=\"$1\"[^>]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]\"" u.xml | head -1 | grep -o '\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]' | sed 's/\]\[/,/; s/[][]//g' | tr ',' ' ')
   if [ -z "$b" ]; then echo "not found: $1"; return 1; fi
   set -- $b
   adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 ))
