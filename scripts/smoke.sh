@@ -20,6 +20,7 @@ adb exec-out screencap -p > 1-open.png
 # first open shows the "save to the cloud" sheet (new versions): "not now"
 tap_text "לא עכשיו" || adb shell input tap 160 560
 sleep 3
+tap_text "לא עכשיו" && sleep 2   # once more if the sheet was still sliding in
 adb exec-out screencap -p > 1b-after-sheet.png
 
 # find a view by its text (or content-desc) and tap its centre
