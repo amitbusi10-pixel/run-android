@@ -15,7 +15,9 @@ adb shell dumpsys deviceidle whitelist +$PKG || true   # same as approving "no b
 adb emu geo fix 34.9528 32.0928
 adb logcat -c
 adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1
-sleep 35
+# wait until the web app has really loaded (the emulator network is sometimes slow)
+for i in $(seq 1 60); do adb logcat -d | grep -q "AL-HADERECH native ok" && break; sleep 2; done
+sleep 8   # the cloud sheet opens 4 seconds after loading
 adb exec-out screencap -p > 1-open.png
 # first open shows the "save to the cloud" sheet (new versions): "not now"
 tap_text "לא עכשיו" || adb shell input tap 160 560
@@ -29,7 +31,8 @@ if [ -n "$OLD" ]; then
   TOP=$(adb shell dumpsys activity activities | grep -m1 -E "topResumedActivity|mResumedActivity")
   echo "$TOP" > update-top.txt
   check "update button opens the download ($TOP)" '! echo "$TOP" | grep -q "$PKG"'
-  adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1; sleep 5
+  adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1; sleep 25
+  adb shell input tap 160 560; sleep 2   # the cloud sheet, which waits until the update banner is gone
 fi
 adb exec-out screencap -p > 1b-after-sheet.png
 
