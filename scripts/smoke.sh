@@ -13,6 +13,12 @@ adb logcat -c
 adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1
 sleep 35
 adb exec-out screencap -p > 1-open.png
+# first open shows the "save to the cloud" sheet: tap "Sign in with Google" to see Android's own sign-in sheet
+adb shell input tap 160 513
+sleep 5
+adb exec-out screencap -p > 1b-google-signin.png
+adb shell input keyevent 4   # back: close the Google sheet
+sleep 2
 
 # find a button by its text (WebView exposes it as text or content-desc) and tap its centre
 tap_text() {
