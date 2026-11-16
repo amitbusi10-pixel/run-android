@@ -7,6 +7,8 @@
 set -x
 PKG=app.alhaderech.run
 RESULT=results.txt; : > $RESULT
+# distinct notifications (the same one can appear twice in the report while it is being updated)
+ncount() { grep -o "NotificationRecord([^ ]* pkg=[^ ]* user=[^ ]* id=[0-9]*" "$1" | grep -o "id=[0-9]*" | sort -u | wc -l | tr -d ' '; }
 check() { if eval "$2"; then echo "PASS $1" >> $RESULT; else echo "FAIL $1" >> $RESULT; fi; }
 
 adb install -r app.apk
@@ -72,7 +74,7 @@ move 4
 notifs > notif-2.txt
 grep -E "android.title=|android.text=|when=|android.progress=" notif-1.txt | head -12 > notif.txt
 cat notif.txt
-COUNT=$(grep -c "NotificationRecord(" notif-1.txt)
+COUNT=$(ncount notif-1.txt)
 check "one notification only (found $COUNT)" '[ "$COUNT" = 1 ]'
 check "no 'ריצה פעילה' text" '! grep -E "android.(title|text)=" notif-1.txt | grep -q "ריצה פעילה"'
 check "says 'הריצה התחילה'" 'grep -q "הריצה התחילה" notif-1.txt'
@@ -111,7 +113,7 @@ if [ -z "$OLD" ]; then
   move 6
   notifs > notif-killed.txt
   adb exec-out screencap -p > 4c-after-kill.png
-  check "notification back after Android killed the app" '[ "$(grep -c "NotificationRecord(" notif-killed.txt)" = 1 ]'
+  check "notification back after Android killed the app" '[ "$(ncount notif-killed.txt)" = 1 ]'
   TK=$(grep -o "android.title=String ([0-9.]*" notif-killed.txt | head -1 | grep -o "[0-9.]*$")
   check "notification keeps counting while the app is closed ($TB -> $TK km)" '[ -n "$TK" ] && [ "$(echo "$TK > $TB + 0.03" | bc)" = 1 ]'
   # pause from the notification while the app is closed
@@ -139,7 +141,7 @@ sleep 3
 adb exec-out screencap -p > 6-summary.png
 sleep 1
 notifs > notif-after.txt
-check "notification gone after finishing" '[ "$(grep -c "NotificationRecord(" notif-after.txt)" = 0 ]'
+check "notification gone after finishing" '[ "$(ncount notif-after.txt)" = 0 ]'
 tap_text "שחזור מהיר" || adb shell input tap 84 333
 sleep 3
 adb exec-out screencap -p > 7-replay.png
@@ -150,6 +152,6 @@ adb logcat -d -b crash > crash.txt
 adb logcat -d > logcat-full.txt
 adb logcat -d | grep -E "AL-HADERECH|Capacitor/Console|AndroidRuntime: FATAL|RunTracker" | tail -60 > log.txt
 cat log.txt
-check "no crash" '! grep -q "FATAL EXCEPTION" crash.txt'
+check "no crash of the app" '! grep -A1 "FATAL EXCEPTION" crash.txt | grep -q "Process: $PKG"'
 cat $RESULT
 ! grep -q FAIL $RESULT
