@@ -6,6 +6,11 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # latest = the current app; v6 = an old install (before the native service), which still gets the web updates
+        apk: [latest, v6]
     steps:
       - name: Enable KVM
         run: |
@@ -15,8 +20,10 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Download the latest APK
-        run: curl -sSL -o app.apk https://github.com/${{ github.repository }}/releases/latest/download/al-haderech.apk
+      - name: Download the APK
+        run: |
+          if [ "${{ matrix.apk }}" = latest ]; then curl -sSL -o app.apk https://github.com/${{ github.repository }}/releases/latest/download/al-haderech.apk
+          else curl -sSL -o app.apk https://github.com/${{ github.repository }}/releases/download/${{ matrix.apk }}/al-haderech.apk; fi
 
       - name: Run on emulator
         uses: reactivecircus/android-emulator-runner@v2
@@ -25,12 +32,12 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          script: bash scripts/smoke.sh
+          script: OLD=${{ matrix.apk != 'latest' && '1' || '' }} bash scripts/smoke.sh
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: smoke
+          name: smoke-${{ matrix.apk }}
           path: |
             *.png
             *.txt

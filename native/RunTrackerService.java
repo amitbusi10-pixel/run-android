@@ -58,6 +58,10 @@ public class RunTrackerService extends Service {
     private String chip = "";
     private double elapsedMs = 0, dist = 0, goal = 0;
     private long elapsedAt = 0;
+    /** wall-clock moment the timer counts from; kept fixed so the timer never jumps or restarts */
+    private long chronoBase = 0;
+    /** what the notification shows now; an identical update is skipped, so nothing flickers */
+    private String shown = "";
 
     @Override
     public IBinder onBind(Intent intent) { return null; }
@@ -72,6 +76,7 @@ public class RunTrackerService extends Service {
                 title = intent.getStringExtra("title");
                 text = intent.getStringExtra("text");
                 elapsedMs = 0; dist = 0; elapsedAt = System.currentTimeMillis();
+                chronoBase = elapsedAt; shown = "";
                 paused = false;
                 if (!running) {
                     synchronized (buffer) { buffer.clear(); }
@@ -92,6 +97,9 @@ public class RunTrackerService extends Service {
                     paused = intent.getBooleanExtra("paused", paused);
                     dist = intent.getDoubleExtra("dist", dist);
                     goal = intent.getDoubleExtra("goal", goal);
+                    // move the timer only if it is really off (more than 3 seconds), never on every update
+                    long base = elapsedAt - (long) elapsedMs;
+                    if (Math.abs(base - chronoBase) > 3000) chronoBase = base;
                 }
                 if (running) notifyNow();
                 break;
@@ -101,6 +109,7 @@ public class RunTrackerService extends Service {
                 // the timer freezes / continues right away; the app sends the exact numbers a moment later
                 if (p && !paused) elapsedMs += System.currentTimeMillis() - elapsedAt;
                 elapsedAt = System.currentTimeMillis();
+                if (!p && paused) chronoBase = elapsedAt - (long) elapsedMs;
                 paused = p;
                 notifyNow();
                 JSObject o = new JSObject();
@@ -159,8 +168,7 @@ public class RunTrackerService extends Service {
             b.setShowWhen(false).setUsesChronometer(false);
         } else {
             // the system ticks the timer every second by itself, without waking the app
-            double now = elapsedMs + (System.currentTimeMillis() - elapsedAt);
-            b.setUsesChronometer(true).setShowWhen(true).setWhen(System.currentTimeMillis() - (long) now);
+            b.setUsesChronometer(true).setShowWhen(true).setWhen(chronoBase);
         }
         if (goal > 0) b.setProgress(1000, (int) Math.min(1000, dist * 1000 / goal), false);
         // Android 16 "live update": shown as a chip in the status bar / Samsung Now Bar when allowed
@@ -177,7 +185,12 @@ public class RunTrackerService extends Service {
 
     private void notifyNow() {
         NotificationManager nm = getSystemService(NotificationManager.class);
-        if (nm != null) nm.notify(NOTIF_ID, build());
+        if (nm == null) return;
+        int prog = goal > 0 ? (int) Math.min(100, dist * 100 / goal) : -1;
+        String sig = title + "|" + text + "|" + chip + "|" + paused + "|" + prog + "|" + (paused ? 0 : chronoBase);
+        if (sig.equals(shown)) return;
+        shown = sig;
+        nm.notify(NOTIF_ID, build());
     }
 
     private void startLocation() {
