@@ -21,6 +21,16 @@ adb exec-out screencap -p > 1-open.png
 tap_text "לא עכשיו" || adb shell input tap 160 560
 sleep 3
 tap_text "לא עכשיו" && sleep 2   # once more if the sheet was still sliding in
+if [ -n "$OLD" ]; then
+  # the old app shows "there is a new version": the button must open the download outside the app
+  tap_text "עדכון" || adb shell input tap 87 133
+  sleep 6
+  adb exec-out screencap -p > 1c-update-tapped.png
+  TOP=$(adb shell dumpsys activity activities | grep -m1 -E "topResumedActivity|mResumedActivity")
+  echo "$TOP" > update-top.txt
+  check "update button opens the download ($TOP)" '! echo "$TOP" | grep -q "$PKG"'
+  adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1; sleep 5
+fi
 adb exec-out screencap -p > 1b-after-sheet.png
 
 # find a view by its text (or content-desc) and tap its centre
