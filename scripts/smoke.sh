@@ -99,6 +99,15 @@ if [ -z "$OLD" ]; then
   notifs > notif-killed.txt
   adb exec-out screencap -p > 4c-after-kill.png
   check "notification back after Android killed the app" '[ "$(grep -c "NotificationRecord(" notif-killed.txt)" = 1 ]'
+  TK=$(grep -o "android.title=String ([0-9.]*" notif-killed.txt | head -1 | grep -o "[0-9.]*$")
+  check "notification keeps counting while the app is closed ($TB -> $TK km)" '[ -n "$TK" ] && [ "$(echo "$TK > $TB + 0.03" | bc)" = 1 ]'
+  # pause from the notification while the app is closed
+  adb shell cmd statusbar expand-notifications; sleep 2
+  tap_text "השהה" || adb shell input tap 85 388; sleep 3
+  notifs > notif-killed-paused.txt
+  check "pause works while the app is closed" 'grep -q "בהשהיה" notif-killed-paused.txt'
+  tap_text "המשך" || adb shell input tap 85 388; sleep 2
+  adb shell cmd statusbar collapse
 fi
 adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1
 sleep 25
@@ -110,6 +119,7 @@ if [ -z "$OLD" ]; then
 fi
 
 # finish the run and play the fast replay on the summary screen
+tap_text "לא עכשיו" && sleep 2   # the cloud sheet, if it is open
 adb shell input swipe 160 560 160 200 400; sleep 1
 tap_text "סיים" || adb shell input tap 85 415
 sleep 3

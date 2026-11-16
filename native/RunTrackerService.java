@@ -34,6 +34,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.util.ArrayList;
+import java.util.Locale;
 
 /**
  * Foreground service that keeps GPS running while the screen is off or the app is in the background,
@@ -72,6 +73,13 @@ public class RunTrackerService extends Service {
     private long chronoBase = 0;
     /** what the notification shows now; an identical update is skipped, so nothing flickers */
     private String shown = "";
+    /**
+     * The service measures the distance too, so the notification stays right when the app itself is not running
+     * (Android closed it): nativeDist is measured here; distAtJs is nativeDist when the app last sent its numbers.
+     */
+    private double nativeDist = 0, distAtJs = 0;
+    private long jsAt = 0;
+    private double[] lastFix = null;
 
     @Override
     public IBinder onBind(Intent intent) { return null; }
@@ -119,6 +127,7 @@ public class RunTrackerService extends Service {
             .putString("title", title).putString("text", text).putString("chip", chip)
             .putFloat("elapsedMs", (float) elapsedMs).putLong("elapsedAt", elapsedAt).putLong("chronoBase", chronoBase)
             .putFloat("dist", (float) dist).putFloat("goal", (float) goal)
+            .putFloat("nativeDist", (float) nativeDist).putFloat("distAtJs", (float) distAtJs)
             .apply();
     }
 
@@ -134,6 +143,10 @@ public class RunTrackerService extends Service {
         chronoBase = sp.getLong("chronoBase", System.currentTimeMillis());
         dist = sp.getFloat("dist", 0);
         goal = sp.getFloat("goal", 0);
+        nativeDist = sp.getFloat("nativeDist", 0);
+        distAtJs = sp.getFloat("distAtJs", 0);
+        jsAt = 0; // the app is not running now: the service keeps the notification up to date by itself
+        lastFix = null;
         shown = "";
     }
 
@@ -171,6 +184,7 @@ public class RunTrackerService extends Service {
                 text = intent.getStringExtra("text");
                 elapsedMs = 0; dist = 0; elapsedAt = System.currentTimeMillis();
                 chronoBase = elapsedAt; shown = "";
+                nativeDist = 0; distAtJs = 0; jsAt = elapsedAt; lastFix = null;
                 paused = false;
                 if (!running) {
                     synchronized (buffer) { buffer.clear(); }
@@ -196,6 +210,8 @@ public class RunTrackerService extends Service {
                     // move the timer only if it is really off (more than 3 seconds), never on every update
                     long base = elapsedAt - (long) elapsedMs;
                     if (Math.abs(base - chronoBase) > 3000) chronoBase = base;
+                    jsAt = System.currentTimeMillis();
+                    distAtJs = nativeDist;
                 }
                 if (running) { save(); notifyNow(); }
                 break;
@@ -207,8 +223,8 @@ public class RunTrackerService extends Service {
                 elapsedAt = System.currentTimeMillis();
                 if (!p && paused) chronoBase = elapsedAt - (long) elapsedMs;
                 paused = p;
-                save();
-                notifyNow();
+                lastFix = null; // what was walked during the pause does not count
+                if (appQuiet()) selfUpdate(); else { save(); notifyNow(); }
                 JSObject o = new JSObject();
                 o.put("action", p ? "pause" : "resume");
                 RunTrackerPlugin.emit("action", o);
@@ -221,6 +237,51 @@ public class RunTrackerService extends Service {
         }
         return START_STICKY;
     }
+
+    /** The app has not sent numbers for a while (closed by Android, or asleep). */
+    private boolean appQuiet() { return System.currentTimeMillis() - jsAt > 8000; }
+
+    private static double haversine(double lat1, double lng1, double lat2, double lng2) {
+        double r = 6371000, dLat = Math.toRadians(lat2 - lat1), dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+            + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        return 2 * r * Math.asin(Math.sqrt(a));
+    }
+
+    /** Same rules as the app: skip inaccurate fixes, standing-still noise and impossible jumps. */
+    private void measure(double[] p) {
+        if (paused || p[2] > 30) return;
+        if (lastFix == null) { lastFix = p; return; }
+        double d = haversine(lastFix[0], lastFix[1], p[0], p[1]);
+        double dt = (p[4] - lastFix[4]) / 1000.0;
+        if (d < 4) return;
+        if (dt > 0 && d / dt > 9) return;
+        nativeDist += d;
+        lastFix = p;
+    }
+
+    private static String km(double m) { return String.format(Locale.US, "%.2f", Math.max(0, m) / 1000); }
+
+    private static String clock(double ms) {
+        long s = (long) (ms / 1000);
+        return s >= 3600 ? String.format(Locale.US, "%d:%02d:%02d", s / 3600, (s / 60) % 60, s % 60) : String.format(Locale.US, "%02d:%02d", s / 60, s % 60);
+    }
+
+    /** Builds the notification text here, the same way the app does, when the app is not running. */
+    private void selfUpdate() {
+        double d = dist + Math.max(0, nativeDist - distAtJs);
+        double ms = paused ? elapsedMs : elapsedMs + (System.currentTimeMillis() - elapsedAt);
+        title = km(d) + " ק״מ";
+        String t = paused ? "הריצה בהשהיה · " + clock(ms) : "הריצה התחילה";
+        if (goal > 0) t += d >= goal ? " · הגעת ליעד ✓" : " · נשארו " + km(goal - d) + " ק״מ ליעד";
+        text = t;
+        chip = String.format(Locale.US, "%.1f ק״מ", d / 1000);
+        save();
+        notifyNow();
+    }
+
+    /** Distance for the progress bar: the app's number plus whatever the service measured since. */
+    private double curDist() { return dist + Math.max(0, nativeDist - distAtJs); }
 
     private void createChannel() {
         if (Build.VERSION.SDK_INT >= 26) {
@@ -267,7 +328,7 @@ public class RunTrackerService extends Service {
             // the system ticks the timer every second by itself, without waking the app
             b.setUsesChronometer(true).setShowWhen(true).setWhen(chronoBase);
         }
-        if (goal > 0) b.setProgress(1000, (int) Math.min(1000, dist * 1000 / goal), false);
+        if (goal > 0) b.setProgress(1000, (int) Math.min(1000, curDist() * 1000 / goal), false);
         // Android 16 "live update": shown as a chip in the status bar / Samsung Now Bar when allowed
         b.getExtras().putBoolean("android.requestPromotedOngoing", true);
         if (chip != null && !chip.isEmpty()) b.getExtras().putString("android.shortCriticalText", chip);
@@ -283,7 +344,7 @@ public class RunTrackerService extends Service {
     private void notifyNow() {
         NotificationManager nm = getSystemService(NotificationManager.class);
         if (nm == null) return;
-        int prog = goal > 0 ? (int) Math.min(100, dist * 100 / goal) : -1;
+        int prog = goal > 0 ? (int) Math.min(100, curDist() * 100 / goal) : -1;
         String sig = title + "|" + text + "|" + chip + "|" + paused + "|" + prog + "|" + (paused ? 0 : chronoBase);
         if (sig.equals(shown)) return;
         shown = sig;
@@ -304,8 +365,11 @@ public class RunTrackerService extends Service {
                 for (Location l : result.getLocations()) {
                     double[] p = { l.getLatitude(), l.getLongitude(), l.getAccuracy(),
                         l.hasSpeed() ? l.getSpeed() : -1, l.getTime(), l.hasBearing() ? l.getBearing() : -1 };
-                    synchronized (buffer) { buffer.add(p); }
-                    appendPoint(p);
+                    if (!paused) { // points walked during a pause are not part of the run
+                        synchronized (buffer) { buffer.add(p); }
+                        appendPoint(p);
+                    }
+                    measure(p);
                     JSObject o = new JSObject();
                     o.put("latitude", p[0]);
                     o.put("longitude", p[1]);
@@ -315,6 +379,7 @@ public class RunTrackerService extends Service {
                     o.put("time", l.getTime());
                     RunTrackerPlugin.emit("location", o);
                 }
+                if (appQuiet()) selfUpdate();
             }
         };
         try {
