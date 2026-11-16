@@ -80,6 +80,7 @@ public class RunTrackerPlugin extends Plugin {
 
     @PluginMethod
     public void update(PluginCall call) {
+        RunTrackerService.restoreIfNeeded(getContext());
         if (!RunTrackerService.running) { call.resolve(); return; }
         Context ctx = getContext();
         Intent i = new Intent(ctx, RunTrackerService.class).setAction(RunTrackerService.ACTION_UPDATE);
@@ -97,7 +98,7 @@ public class RunTrackerPlugin extends Plugin {
     @PluginMethod
     public void stop(PluginCall call) {
         Context ctx = getContext();
-        if (RunTrackerService.running) {
+        if (RunTrackerService.running || RunTrackerService.prefs(ctx).getBoolean("running", false)) {
             ctx.startService(new Intent(ctx, RunTrackerService.class).setAction(RunTrackerService.ACTION_STOP));
         }
         call.resolve();
@@ -105,6 +106,7 @@ public class RunTrackerPlugin extends Plugin {
 
     @PluginMethod
     public void status(PluginCall call) {
+        RunTrackerService.restoreIfNeeded(getContext());
         JSObject r = new JSObject();
         r.put("running", RunTrackerService.running);
         r.put("paused", RunTrackerService.paused);
@@ -116,6 +118,7 @@ public class RunTrackerPlugin extends Plugin {
     @PluginMethod
     public void getSince(PluginCall call) {
         double since = call.getDouble("time", 0.0);
+        RunTrackerService.restoreIfNeeded(getContext());
         JSArray arr = new JSArray();
         synchronized (RunTrackerService.buffer) {
             for (double[] p : RunTrackerService.buffer) {

@@ -6,7 +6,9 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.location.Location;
@@ -27,6 +29,10 @@ import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.util.ArrayList;
 
 /**
@@ -41,6 +47,10 @@ public class RunTrackerService extends Service {
     static final String ACTION_STOP = "app.alhaderech.run.STOP";
     static final String ACTION_PAUSE = "app.alhaderech.run.PAUSE";
     static final String ACTION_RESUME = "app.alhaderech.run.RESUME";
+    /** Android killed the app in the middle of a run and started the service again: carry on */
+    static final String ACTION_RESTORE = "app.alhaderech.run.RESTORE";
+    static final String PREFS = "run-tracker";
+    static final String POINTS_FILE = "run-points.csv";
     // default importance (not "silent"), so Android shows it on the lock screen; the channel has no sound or vibration
     static final String CHANNEL = "run-live-v2";
     static final int NOTIF_ID = 4242;
@@ -66,10 +76,94 @@ public class RunTrackerService extends Service {
     @Override
     public IBinder onBind(Intent intent) { return null; }
 
+    static SharedPreferences prefs(Context c) { return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE); }
+
+    /** A run was going on when Android killed the app (the saved state says so, the memory doesn't). */
+    static boolean wasRunning(Context c) { return !running && prefs(c).getBoolean("running", false); }
+
+    /** Loads the points saved before the app was killed, so the app can still get them. */
+    static void loadPoints(Context c) {
+        File f = new File(c.getFilesDir(), POINTS_FILE);
+        ArrayList<double[]> pts = new ArrayList<>();
+        if (f.exists()) {
+            try (BufferedReader r = new BufferedReader(new FileReader(f))) {
+                String line;
+                while ((line = r.readLine()) != null) {
+                    String[] a = line.split(",");
+                    if (a.length < 6) continue;
+                    double[] p = new double[6];
+                    for (int i = 0; i < 6; i++) p[i] = Double.parseDouble(a[i]);
+                    pts.add(p);
+                }
+            } catch (Exception e) { /* keep what was read */ }
+        }
+        synchronized (buffer) { buffer.clear(); buffer.addAll(pts); }
+    }
+
+    /** Called from the plugin when the app opens after being killed: start the service again from the saved state. */
+    static void restoreIfNeeded(Context c) {
+        if (!wasRunning(c)) return;
+        SharedPreferences sp = prefs(c);
+        running = true;
+        paused = sp.getBoolean("paused", false);
+        startedAt = sp.getLong("startedAt", System.currentTimeMillis());
+        loadPoints(c);
+        try {
+            ContextCompat.startForegroundService(c, new Intent(c, RunTrackerService.class).setAction(ACTION_RESTORE));
+        } catch (Exception e) { /* the service restarts by itself (START_STICKY) */ }
+    }
+
+    private void save() {
+        prefs(this).edit()
+            .putBoolean("running", running).putBoolean("paused", paused).putLong("startedAt", startedAt)
+            .putString("title", title).putString("text", text).putString("chip", chip)
+            .putFloat("elapsedMs", (float) elapsedMs).putLong("elapsedAt", elapsedAt).putLong("chronoBase", chronoBase)
+            .putFloat("dist", (float) dist).putFloat("goal", (float) goal)
+            .apply();
+    }
+
+    private void restoreFields() {
+        SharedPreferences sp = prefs(this);
+        paused = sp.getBoolean("paused", false);
+        startedAt = sp.getLong("startedAt", System.currentTimeMillis());
+        title = sp.getString("title", title);
+        text = sp.getString("text", text);
+        chip = sp.getString("chip", "");
+        elapsedMs = sp.getFloat("elapsedMs", 0);
+        elapsedAt = sp.getLong("elapsedAt", System.currentTimeMillis());
+        chronoBase = sp.getLong("chronoBase", System.currentTimeMillis());
+        dist = sp.getFloat("dist", 0);
+        goal = sp.getFloat("goal", 0);
+        shown = "";
+    }
+
+    private void appendPoint(double[] p) {
+        try (FileWriter w = new FileWriter(new File(getFilesDir(), POINTS_FILE), true)) {
+            w.write(p[0] + "," + p[1] + "," + p[2] + "," + p[3] + "," + (long) p[4] + "," + p[5] + "\n");
+        } catch (Exception e) { /* the point is still in memory */ }
+    }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent != null ? intent.getAction() : null;
-        if (action == null) action = running ? ACTION_UPDATE : ACTION_STOP;
+        boolean saved = prefs(this).getBoolean("running", false);
+        // started again by Android after the app was killed (no intent), or by the plugin after reopening
+        if (saved && (action == null || ACTION_RESTORE.equals(action) || (!ACTION_START.equals(action) && !ACTION_STOP.equals(action) && callback == null))) {
+            restoreFields();
+            running = true;
+            loadPoints(this);
+            try {
+                goForeground();
+            } catch (Exception e) {
+                // Android did not allow it from the background; the app restores the run when it is opened
+                running = false;
+                stopSelf();
+                return START_NOT_STICKY;
+            }
+            startLocation();
+            if (action == null || ACTION_RESTORE.equals(action)) return START_STICKY;
+        }
+        if (action == null || ACTION_RESTORE.equals(action)) action = running ? ACTION_UPDATE : ACTION_STOP;
         switch (action) {
             case ACTION_START:
                 goal = intent.getDoubleExtra("goal", 0);
@@ -80,9 +174,11 @@ public class RunTrackerService extends Service {
                 paused = false;
                 if (!running) {
                     synchronized (buffer) { buffer.clear(); }
+                    new File(getFilesDir(), POINTS_FILE).delete();
                     startedAt = System.currentTimeMillis();
                 }
                 running = true;
+                save();
                 goForeground();
                 startLocation();
                 break;
@@ -101,7 +197,7 @@ public class RunTrackerService extends Service {
                     long base = elapsedAt - (long) elapsedMs;
                     if (Math.abs(base - chronoBase) > 3000) chronoBase = base;
                 }
-                if (running) notifyNow();
+                if (running) { save(); notifyNow(); }
                 break;
             case ACTION_PAUSE:
             case ACTION_RESUME: {
@@ -111,6 +207,7 @@ public class RunTrackerService extends Service {
                 elapsedAt = System.currentTimeMillis();
                 if (!p && paused) chronoBase = elapsedAt - (long) elapsedMs;
                 paused = p;
+                save();
                 notifyNow();
                 JSObject o = new JSObject();
                 o.put("action", p ? "pause" : "resume");
@@ -208,6 +305,7 @@ public class RunTrackerService extends Service {
                     double[] p = { l.getLatitude(), l.getLongitude(), l.getAccuracy(),
                         l.hasSpeed() ? l.getSpeed() : -1, l.getTime(), l.hasBearing() ? l.getBearing() : -1 };
                     synchronized (buffer) { buffer.add(p); }
+                    appendPoint(p);
                     JSObject o = new JSObject();
                     o.put("latitude", p[0]);
                     o.put("longitude", p[1]);
@@ -231,6 +329,8 @@ public class RunTrackerService extends Service {
         callback = null;
         running = false;
         paused = false;
+        prefs(this).edit().clear().apply();
+        new File(getFilesDir(), POINTS_FILE).delete();
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
         stopSelf();
     }

@@ -88,10 +88,25 @@ if [ -z "$OLD" ]; then
   check "resume button in the notification" 'grep -q "הריצה התחילה" notif-resumed.txt && grep -q "בהשהיה" notif-paused.txt'
 fi
 adb shell cmd statusbar collapse
+if [ -z "$OLD" ]; then
+  # Android kills the app in the middle of the run (like low memory): the run must go on
+  TB=$(notifs | grep -o "android.title=String ([0-9.]*" | head -1 | grep -o "[0-9.]*$")
+  adb root; sleep 3; adb wait-for-device
+  adb shell kill -9 $(adb shell pidof $PKG) || true
+  sleep 8
+  move 6
+  notifs > notif-killed.txt
+  adb exec-out screencap -p > 4c-after-kill.png
+  check "notification back after Android killed the app" '[ "$(grep -c "NotificationRecord(" notif-killed.txt)" = 1 ]'
+fi
 adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1
-sleep 4
+sleep 25
 adb exec-out screencap -p > 5-back-in-app.png
 move 4
+if [ -z "$OLD" ]; then
+  TA=$(notifs | grep -o "android.title=String ([0-9.]*" | head -1 | grep -o "[0-9.]*$")
+  check "distance kept and grew after the kill ($TB -> $TA km)" '[ -n "$TA" ] && [ -n "$TB" ] && [ "$(echo "$TA > $TB + 0.05" | bc)" = 1 ]'
+fi
 
 # finish the run and play the fast replay on the summary screen
 adb shell input swipe 160 560 160 200 400; sleep 1
