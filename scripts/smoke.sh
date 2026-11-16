@@ -17,8 +17,8 @@ adb exec-out screencap -p > 1-open.png
 adb shell input tap 160 513
 sleep 5
 adb exec-out screencap -p > 1b-google-signin.png
-adb shell input keyevent 4   # back: close the Google sheet
-sleep 2
+adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1   # back to the app
+sleep 6
 
 # find a button by its text (WebView exposes it as text or content-desc) and tap its centre
 tap_text() {
