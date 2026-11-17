@@ -11,33 +11,6 @@ RESULT=results.txt; : > $RESULT
 ncount() { grep -o "NotificationRecord([^ ]* pkg=[^ ]* user=[^ ]* id=[0-9]*" "$1" | grep -o "id=[0-9]*" | sort -u | wc -l | tr -d ' '; }
 check() { if eval "$2"; then echo "PASS $1" >> $RESULT; else echo "FAIL $1" >> $RESULT; fi; }
 
-adb install -r app.apk
-for p in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION POST_NOTIFICATIONS; do adb shell pm grant $PKG android.permission.$p || true; done
-adb shell dumpsys deviceidle whitelist +$PKG || true   # same as approving "no battery limits"
-adb emu geo fix 34.9528 32.0928
-adb logcat -c
-adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1
-# wait until the web app has really loaded (the emulator network is sometimes slow)
-for i in $(seq 1 60); do adb logcat -d | grep -q "AL-HADERECH native ok" && break; sleep 2; done
-sleep 8   # the cloud sheet opens 4 seconds after loading
-adb exec-out screencap -p > 1-open.png
-# first open shows the "save to the cloud" sheet (new versions): "not now"
-tap_text "לא עכשיו" || adb shell input tap 160 560
-sleep 3
-tap_text "לא עכשיו" && sleep 2   # once more if the sheet was still sliding in
-if [ -n "$OLD" ]; then
-  # the old app shows "there is a new version": the button must open the download outside the app
-  tap_text "עדכון" || adb shell input tap 87 133
-  sleep 6
-  adb exec-out screencap -p > 1c-update-tapped.png
-  TOP=$(adb shell dumpsys activity activities | grep -m1 -E "topResumedActivity|mResumedActivity")
-  echo "$TOP" > update-top.txt
-  check "update button opens the download ($TOP)" '! echo "$TOP" | grep -q "$PKG"'
-  adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1; sleep 25
-  adb shell input tap 160 560; sleep 2   # the cloud sheet, which waits until the update banner is gone
-fi
-adb exec-out screencap -p > 1b-after-sheet.png
-
 # find a view by its text (or content-desc) and tap its centre
 tap_text() {
   adb shell uiautomator dump /sdcard/u.xml >/dev/null 2>&1
@@ -51,12 +24,39 @@ tap_text() {
 # the app's notifications: one block per notification
 notifs() { adb shell dumpsys notification --noredact | awk -v p="pkg=$PKG" '/NotificationRecord\(/{on=index($0,p)>0} on'; }
 
+adb install -r app.apk
+for p in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION POST_NOTIFICATIONS; do adb shell pm grant $PKG android.permission.$p || true; done
+adb shell dumpsys deviceidle whitelist +$PKG || true   # same as approving "no battery limits"
+adb emu geo fix 34.9528 32.0928
+adb logcat -c
+adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1
+# wait until the web app has really loaded (the emulator network is sometimes slow)
+for i in $(seq 1 150); do adb logcat -d | grep -q "AL-HADERECH native ok" && break; sleep 2; done
+sleep 8   # the cloud sheet opens 4 seconds after loading
+adb exec-out screencap -p > 1-open.png
+# first open shows the "save to the cloud" sheet (new versions): "not now"
+dismiss_sheet() { for k in 1 2 3 4 5; do tap_text "לא עכשיו" && sleep 2 || { sleep 2; tap_text "לא עכשיו" || return 0; }; done; }
+dismiss_sheet
+if [ -n "$OLD" ]; then
+  # the old app shows "there is a new version": the button must open the download outside the app
+  tap_text "עדכון" || adb shell input tap 87 133
+  sleep 6
+  adb exec-out screencap -p > 1c-update-tapped.png
+  TOP=$(adb shell dumpsys activity activities | grep -m1 -E "topResumedActivity|mResumedActivity")
+  echo "$TOP" > update-top.txt
+  check "update button opens the download ($TOP)" '! echo "$TOP" | grep -q "$PKG"'
+  adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1; sleep 25
+  adb shell input tap 160 560; sleep 2   # the cloud sheet, which waits until the update banner is gone
+fi
+adb exec-out screencap -p > 1b-after-sheet.png
+
 lat=32.0928
 MOVES=0   # every step of 0.00009 degrees is 10.0 metres on the ground: the true distance is MOVES x 10 m
 move() { for i in $(seq 1 "$1"); do lat=$(echo "$lat + 0.00009" | bc -l); adb emu geo fix 34.9528 "$lat"; MOVES=$((MOVES+1)); sleep 2; done; }
 # |a-b| / b in percent
 errpct() { echo "scale=2; x=($1 - $2) * 100 / $2; if (x < 0) -x else x" | bc -l; }
 
+dismiss_sheet
 adb shell input swipe 160 560 160 200 400
 sleep 2
 tap_text "התחל ריצה" || adb shell input tap 160 433
