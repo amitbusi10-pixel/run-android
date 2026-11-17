@@ -35,7 +35,7 @@ for i in $(seq 1 150); do adb logcat -d | grep -q "AL-HADERECH native ok" && bre
 sleep 8   # the cloud sheet opens 4 seconds after loading
 adb exec-out screencap -p > 1-open.png
 # first open shows the "save to the cloud" sheet (new versions): "not now"
-dismiss_sheet() { for k in 1 2 3 4 5; do tap_text "לא עכשיו" && sleep 2 || { sleep 2; tap_text "לא עכשיו" || return 0; }; done; }
+dismiss_sheet() { (tap_text "לא עכשיו" || adb shell input tap 160 560); sleep 3; tap_text "לא עכשיו" && sleep 2; return 0; }
 dismiss_sheet
 if [ -n "$OLD" ]; then
   # the old app shows "there is a new version": the button must open the download outside the app
@@ -56,7 +56,6 @@ move() { for i in $(seq 1 "$1"); do lat=$(echo "$lat + 0.00009" | bc -l); adb em
 # |a-b| / b in percent
 errpct() { echo "scale=2; x=($1 - $2) * 100 / $2; if (x < 0) -x else x" | bc -l; }
 
-dismiss_sheet
 adb shell input swipe 160 560 160 200 400
 sleep 2
 tap_text "התחל ריצה" || adb shell input tap 160 433
