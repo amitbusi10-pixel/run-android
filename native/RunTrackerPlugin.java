@@ -111,6 +111,7 @@ public class RunTrackerPlugin extends Plugin {
         r.put("running", RunTrackerService.running);
         r.put("paused", RunTrackerService.paused);
         r.put("startedAt", RunTrackerService.startedAt);
+        synchronized (RunTrackerService.buffer) { r.put("points", RunTrackerService.buffer.size()); }
         call.resolve(r);
     }
 
@@ -119,11 +120,15 @@ public class RunTrackerPlugin extends Plugin {
     public void getSince(PluginCall call) {
         double since = call.getDouble("time", 0.0);
         RunTrackerService.restoreIfNeeded(getContext());
+        boolean bySeq = call.hasOption("seq");
+        int fromSeq = bySeq ? call.getInt("seq", 0) : 0;
         JSArray arr = new JSArray();
         synchronized (RunTrackerService.buffer) {
-            for (double[] p : RunTrackerService.buffer) {
-                if (p[4] > since) {
+            for (int idx = 0; idx < RunTrackerService.buffer.size(); idx++) {
+                double[] p = RunTrackerService.buffer.get(idx);
+                if (bySeq ? idx >= fromSeq : p[4] > since) {
                     JSObject o = new JSObject();
+                    o.put("seq", idx);
                     o.put("latitude", p[0]);
                     o.put("longitude", p[1]);
                     o.put("accuracy", p[2]);

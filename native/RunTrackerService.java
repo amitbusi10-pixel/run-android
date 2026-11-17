@@ -375,12 +375,14 @@ public class RunTrackerService extends Service {
                 for (Location l : result.getLocations()) {
                     double[] p = { l.getLatitude(), l.getLongitude(), l.getAccuracy(),
                         l.hasSpeed() ? l.getSpeed() : -1, l.getTime(), l.hasBearing() ? l.getBearing() : -1 };
+                    int seq = -1; // running number of the point in this run; the app uses it to notice any point it missed
                     if (!paused) { // points walked during a pause are not part of the run
-                        synchronized (buffer) { buffer.add(p); }
+                        synchronized (buffer) { seq = buffer.size(); buffer.add(p); }
                         appendPoint(p);
                     }
                     measure(p);
                     JSObject o = new JSObject();
+                    o.put("seq", seq);
                     o.put("latitude", p[0]);
                     o.put("longitude", p[1]);
                     o.put("accuracy", p[2]);

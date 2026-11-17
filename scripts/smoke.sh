@@ -52,7 +52,10 @@ tap_text() {
 notifs() { adb shell dumpsys notification --noredact | awk -v p="pkg=$PKG" '/NotificationRecord\(/{on=index($0,p)>0} on'; }
 
 lat=32.0928
-move() { for i in $(seq 1 "$1"); do lat=$(echo "$lat + 0.00009" | bc -l); adb emu geo fix 34.9528 "$lat"; sleep 2; done; }
+MOVES=0   # every step of 0.00009 degrees is 10.0 metres on the ground: the true distance is MOVES x 10 m
+move() { for i in $(seq 1 "$1"); do lat=$(echo "$lat + 0.00009" | bc -l); adb emu geo fix 34.9528 "$lat"; MOVES=$((MOVES+1)); sleep 2; done; }
+# |a-b| / b in percent
+errpct() { echo "scale=2; x=($1 - $2) * 100 / $2; if (x < 0) -x else x" | bc -l; }
 
 adb shell input swipe 160 560 160 200 400
 sleep 2
@@ -133,6 +136,11 @@ move 4
 if [ -z "$OLD" ]; then
   TA=$(notifs | grep -o "android.title=String ([0-9.]*" | head -1 | grep -o "[0-9.]*$")
   check "distance kept and grew after the kill ($TB -> $TA km)" '[ -n "$TA" ] && [ -n "$TB" ] && [ "$(echo "$TA > $TB + 0.05" | bc)" = 1 ]'
+  # accuracy: the notification (service) against the true distance walked
+  TRUE=$((MOVES*10)); NOTIF_M=$(echo "$TA * 1000" | bc -l)
+  E1=$(errpct "$NOTIF_M" "$TRUE")
+  echo "notification distance $TA km vs true $TRUE m: error $E1 %" >> accuracy.txt
+  check "notification distance accurate (error $E1 %, true $TRUE m)" '[ "$(echo "$E1 <= 6" | bc)" = 1 ]'
 fi
 
 # finish the run and play the fast replay on the summary screen
@@ -142,6 +150,16 @@ tap_text "סיים" || adb shell input tap 85 415
 sleep 3
 adb exec-out screencap -p > 6-summary.png
 sleep 1
+# accuracy of the number the app itself shows in the summary (the first stat is the distance, in km)
+adb shell uiautomator dump /sdcard/u.xml >/dev/null 2>&1; adb exec-out cat /sdcard/u.xml > u-summary.xml
+SUMKM=$(grep -o 'text="[0-9]*\.[0-9][0-9]*"' u-summary.xml | head -1 | grep -o '[0-9.]*')
+if [ -z "$OLD" ] && [ -n "$SUMKM" ]; then
+  TRUE=$((MOVES*10)); E2=$(errpct "$(echo "$SUMKM * 1000" | bc -l)" "$TRUE")
+  echo "summary distance $SUMKM km vs true $TRUE m: error $E2 %" >> accuracy.txt
+  check "summary distance accurate (shows $SUMKM km, true $TRUE m, error $E2 %)" '[ "$(echo "$E2 <= 6" | bc)" = 1 ]'
+elif [ -z "$OLD" ]; then
+  echo "FAIL summary distance not found on the screen" >> $RESULT
+fi
 notifs > notif-after.txt
 check "notification gone after finishing" '[ "$(ncount notif-after.txt)" = 0 ]'
 tap_text "שחזור מהיר" || adb shell input tap 84 333

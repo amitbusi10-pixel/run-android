@@ -2,9 +2,14 @@ name: Smoke test on emulator
 
 on:
   workflow_dispatch:
+  # the bot runs by itself after every new build of the app
+  workflow_run:
+    workflows: ["Build Android app"]
+    types: [completed]
 
 jobs:
   smoke:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
