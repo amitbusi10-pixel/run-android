@@ -35,7 +35,7 @@ for i in $(seq 1 150); do adb logcat -d | grep -q "AL-HADERECH native ok" && bre
 sleep 8   # the cloud sheet opens 4 seconds after loading
 adb exec-out screencap -p > 1-open.png
 # first open shows the "save to the cloud" sheet (new versions): "not now"
-dismiss_sheet() { sleep 10; (tap_text "לא עכשיו" || adb shell input tap 160 570); sleep 3; tap_text "לא עכשיו" && sleep 2; adb shell input tap 287 605; sleep 2; return 0; }
+dismiss_sheet() { for i in $(seq 1 60); do adb logcat -d | grep -q "auth sheet shown" && break; sleep 2; done; sleep 2; adb shell input tap 160 570; sleep 2; adb shell input tap 287 605; sleep 2; return 0; }
 dismiss_sheet
 if [ -n "$OLD" ]; then
   # the old app shows "there is a new version": the button must open the download outside the app
@@ -149,15 +149,17 @@ tap_text "סיים" || adb shell input tap 85 415
 sleep 3
 adb exec-out screencap -p > 6-summary.png
 sleep 1
-# accuracy of the number the app itself shows in the summary (the first stat is the distance, in km)
-adb shell uiautomator dump /sdcard/u.xml >/dev/null 2>&1; adb exec-out cat /sdcard/u.xml > u-summary.xml
-SUMKM=$(grep -o 'text="[0-9]*\.[0-9][0-9]*"' u-summary.xml | head -1 | grep -o '[0-9.]*')
-if [ -z "$OLD" ] && [ -n "$SUMKM" ]; then
-  TRUE=$((MOVES*10)); E2=$(errpct "$(echo "$SUMKM * 1000" | bc -l)" "$TRUE")
-  echo "summary distance $SUMKM km vs true $TRUE m: error $E2 %" >> accuracy.txt
-  check "summary distance accurate (shows $SUMKM km, true $TRUE m, error $E2 %)" '[ "$(echo "$E2 <= 6" | bc)" = 1 ]'
-elif [ -z "$OLD" ]; then
-  echo "FAIL summary distance not found on the screen" >> $RESULT
+# accuracy of the distance the app itself saved (it writes it to the log when the run is saved)
+SAVED=$(adb logcat -d | grep -o "run saved dist=[0-9]*" | tail -1 | grep -o "[0-9]*$")
+if [ -z "$OLD" ]; then
+  TRUE=$((MOVES*10))
+  if [ -n "$SAVED" ]; then
+    E2=$(errpct "$SAVED" "$TRUE")
+    echo "saved run distance $SAVED m vs true $TRUE m: error $E2 %" >> accuracy.txt
+    check "saved run distance accurate (app saved $SAVED m, true $TRUE m, error $E2 %)" '[ "$(echo "$E2 <= 6" | bc)" = 1 ]'
+  else
+    echo "FAIL run was not saved (no distance in the log)" >> $RESULT
+  fi
 fi
 notifs > notif-after.txt
 check "notification gone after finishing" '[ "$(ncount notif-after.txt)" = 0 ]'
