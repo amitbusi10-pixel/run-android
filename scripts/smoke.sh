@@ -179,6 +179,14 @@ if [ -z "$OLD" ]; then
   adb exec-out screencap -p > 9-recents.png
   adb shell input swipe 160 300 160 0 300; sleep 2; adb shell input swipe 250 300 250 0 300; sleep 4
   notifs > notif-swiped.txt
+  # the first time, Android shows a tip bubble over the recent-apps screen that eats the swipe: try again
+  for k in 1 2; do
+    [ "$(ncount notif-swiped.txt)" = 0 ] && break
+    adb shell input keyevent 3; sleep 2; adb shell input keyevent 187; sleep 3
+    adb exec-out screencap -p > 9-recents-$k.png
+    adb shell input swipe 160 300 160 0 300; sleep 2; adb shell input swipe 250 300 250 0 300; sleep 4
+    notifs > notif-swiped.txt
+  done
   check "notification gone after swiping the app away" '[ "$(ncount notif-swiped.txt)" = 0 ]'
   adb shell input keyevent 3
 fi
