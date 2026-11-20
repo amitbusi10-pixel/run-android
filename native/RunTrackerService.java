@@ -25,6 +25,7 @@ import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.JSObject;
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.Granularity;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
@@ -365,9 +366,14 @@ public class RunTrackerService extends Service {
         if (callback != null) return;
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return;
         fused = LocationServices.getFusedLocationProviderClient(this);
+        // the most accurate GPS the phone can give: satellites at full precision, a fix every second,
+        // never batched or delayed (batching saves battery but delivers points late and in bursts)
         LocationRequest req = new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
             .setMinUpdateIntervalMillis(500)
-            .setWaitForAccurateLocation(false)
+            .setMinUpdateDistanceMeters(0)
+            .setMaxUpdateDelayMillis(0)
+            .setGranularity(Granularity.GRANULARITY_FINE)
+            .setWaitForAccurateLocation(true)
             .build();
         callback = new LocationCallback() {
             @Override

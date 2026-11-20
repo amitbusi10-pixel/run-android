@@ -187,5 +187,19 @@ adb logcat -d > logcat-full.txt
 adb logcat -d | grep -E "AL-HADERECH|Capacitor/Console|AndroidRuntime: FATAL|RunTracker" | tail -60 > log.txt
 cat log.txt
 check "no crash of the app" '! grep -A1 "FATAL EXCEPTION" crash.txt | grep -q "Process: $PKG"'
+# updating the app must never delete runs or routes: open the app, count, install the newer APK over it, count again
+datacount() { for i in $(seq 1 90); do n=$(adb logcat -d | grep -o "AL-HADERECH data runs=[0-9]* routes=[0-9]*" | tail -1); [ -n "$n" ] && { echo "$n"; return; }; sleep 2; done; }
+adb shell am force-stop $PKG; adb logcat -c
+adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1
+D1=$(datacount)
+adb install -r new.apk
+adb shell am force-stop $PKG; adb logcat -c
+adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1
+D2=$(datacount)
+R1=$(echo "$D1" | grep -o "runs=[0-9]*" | grep -o "[0-9]*"); R2=$(echo "$D2" | grep -o "runs=[0-9]*" | grep -o "[0-9]*")
+echo "before update: $D1 / after update: $D2" >> accuracy.txt
+check "update keeps the saved runs ($D1 -> $D2)" '[ -n "$R1" ] && [ "$R1" -ge 1 ] && [ "$R2" = "$R1" ]'
+adb logcat -d -b crash > crash-after-update.txt
+check "no crash after the update" '! grep -A1 "FATAL EXCEPTION" crash-after-update.txt | grep -q "Process: $PKG"'
 cat $RESULT
 ! grep -q FAIL $RESULT

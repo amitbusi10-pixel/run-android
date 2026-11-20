@@ -29,6 +29,8 @@ jobs:
         run: |
           if [ "${{ matrix.apk }}" = latest ]; then curl -sSL -o app.apk https://github.com/${{ github.repository }}/releases/latest/download/al-haderech.apk
           else curl -sSL -o app.apk https://github.com/${{ github.repository }}/releases/download/${{ matrix.apk }}/al-haderech.apk; fi
+          # the newest APK, installed over the tested one at the end to check an update keeps the data
+          curl -sSL -o new.apk https://github.com/${{ github.repository }}/releases/latest/download/al-haderech.apk
 
       - name: Run on emulator
         uses: reactivecircus/android-emulator-runner@v2
