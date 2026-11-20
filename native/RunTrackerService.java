@@ -258,7 +258,7 @@ public class RunTrackerService extends Service {
         double d = haversine(lastFix[0], lastFix[1], p[0], p[1]);
         double dt = (p[4] - lastFix[4]) / 1000.0;
         if (d < 4) return;
-        if (dt > 0 && d / dt > 9) return;
+        if (d > 9 * Math.max(0.5, dt) + lastFix[2] + p[2] + 5) return; // impossible jump, with room for both readings' error
         nativeDist += d;
         lastFix = p;
     }
